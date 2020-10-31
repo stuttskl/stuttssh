@@ -8,25 +8,32 @@
 #include <sys/wait.h>
 #include "smallsh.h"
 
-#define MAX_LEN 2049 // for max command line length
+#define MAX_LEN 2048 // for max command line length
 #define MAX_ARGS 512 // for max arguments length
 
 int allowBackground = 1;
 
-void smallshRead(char* arr[], int* bgProcess, char inputName[], char outputName[], int pid) {
+void smallshRead(char* arr[], int* bgProcess, char inputName[], char outputName[]) {
 
     char buffer[MAX_LEN]; // buffer that can store up to 2048 elements
-
-    // print prompt (:) to the user
-    printf("%s",": ");
+		int i, j;
+    // print : in cyan 
+		// printf("\033[0;36m");
+		// print prompt (:) to the user
+    printf(": ");
+		// reset text color
+		// printf("\033[0m");
     fflush(stdout);
     // get full command from standard in
     fgets(buffer, MAX_LEN, stdin); 
     // strip newline
     buffer[strcspn(buffer, "\n")] = 0;
     // printf("Your command is %s \n", buffer);
-
-    // add handling for if input is blank..?
+		// If it's blank, return blank
+		if (!strcmp(buffer, "")) {
+			arr[0] = strdup("");
+			return;
+		}
 
     // for use with strtok_r
     char *saveptr;
@@ -34,36 +41,48 @@ void smallshRead(char* arr[], int* bgProcess, char inputName[], char outputName[
     // read the buffer and save each word into tokens
     // this is adapted from bits in Assignment 1 and Assignment 2 
     char *token = strtok_r(buffer, " ", &saveptr); 
-    
-    for (int i = 0; token; i++) {
+
+    for (i = 0; token; i++) {
 		// Check for & to be a background process
 		if (strcmp(token, "&") == 0) { // should this be !strcmp or == 0?
 			*bgProcess = 1;
 		}
 		// Check for < to denote input file
 		else if (strcmp(token, "<") == 0) {
-			token = strtok_r(NULL, " ", &saveptr);
+			token = strtok_r(NULL, " ", &saveptr); 
 			strcpy(inputName, token);
 		}
 		// Check for > to denote output file
 		else if (strcmp(token, ">") == 0) {
-			token = strtok_r(NULL, " ", &saveptr);
+			token = strtok_r(NULL, " ", &saveptr); 
 			strcpy(outputName, token);
 		}
 		// Otherwise, it's part of the command!
 		else {
-			arr[i] = strdup(token);
+	
+			arr[i] = strdup(token); // ls, cd, mkdir etc	
+			// printf("arr[i] = %s\n", arr[i]); // first part of command
       // checking if command ends in $$ for variable expansion
-			for (int j = 0; arr[i][j]; j++) {
+			for (j = 0; arr[i][j]; j++) {
 				if (arr[i][j] == '$' && arr[i][j+1] == '$') {
+					// printf("VARIABLE EXPANSION!!!\n");
+					// printf("inside for loop, arr[i] is= %s\n", arr[i]);
+					// printf("arr[i]= %s\n", arr[i]);
+					// printf("arr[i][j]= %s\n", arr[i][j]);
+					// printf("arr[i][j+1]= %s\n", arr[i][j+1]);
 					arr[i][j] = '\0';
-          arr[i][j+1] = '\0'; // maybe this doesn't need to be here?
-					snprintf(arr[i], 256, "%s%d", arr[i], pid); // pid or getpid()? 
+          // arr[i][j+1] = '\0'; // maybe this doesn't need to be here?
+					// arr[i][j] = getpid();
+					// printf("inside for loop but after the reassignment, arr[i] is= %s\n", arr[i]);
+					
+					// when first arg is buffer, i get testdir, but no $$ ?? 
+					snprintf(arr[i], 2048, "%s%d", arr[i], getpid()); 
+					// printf("%s", arr[i]);
 				}
 			}
 		}
 		// Next!
-		token = strtok_r(NULL, " ", &saveptr);
+		token = strtok_r(NULL, " ", &saveptr); 
     }
 }
 
@@ -155,7 +174,6 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, int* bgP
 }
 
 void catchSIGTSTP(int signo) {
-
 	// If it's 1, set it to 0 and display a message reentrantly
 	if (allowBackground == 1) {
 		char* message = "Entering foreground-only mode (& is now ignored)\n";
@@ -163,7 +181,6 @@ void catchSIGTSTP(int signo) {
 		fflush(stdout);
 		allowBackground = 0;
 	}
-
 	// If it's 0, set it to 1 and display a message reentrantly
 	else {
 		char* message = "Exiting foreground-only mode\n";
@@ -179,16 +196,17 @@ void smallshExitStatus(int childStatus) {
 	if (WIFEXITED(childStatus)) {
 		// WEXITSTATUS returns the status value the child passed to exit()
 		printf("Exit value %d\n", WEXITSTATUS(childStatus));
+		fflush(stdout);
 	} else {
 		// WTERMSIG will return the signal number that caused the child to terminate
 		printf("Terminated by signal %d\n", WTERMSIG(childStatus));
+		fflush(stdout);
 	}
 }
 
 int main() {
 	// to store built in commands 
-	const char *builtIns[] = {"exit", "ed", "status"};
-	int pid = getpid();
+	const char *builtIns[] = {"exit", "cd", "status"};
 	// the shell loop will continue until this is 0
 	int continueLoop = 1;
 	int exitStatus = 0;
@@ -204,213 +222,68 @@ int main() {
 	}
 
 	// Signal Handlers
-	// https://repl.it/@cs344/53siguserc#signalexample.c
-	// Ignore ^C
+	// https://repl.it/@cs344/53siguserc#signalexample.c	
 	// declare sigaction STRUCT 
 	struct sigaction SIGINT_action = { 0 };
+	struct sigaction SIGTSTP_action = { 0 };
+
 	// pass in sig handler with constant, indicating it should be ignored
 	SIGINT_action.sa_handler = SIG_IGN;
+	SIGTSTP_action.sa_handler = catchSIGTSTP;
+
 	// Block all catchable signals while handle_SIGINT is running
 	sigfillset(&SIGINT_action.sa_mask);
+	sigfillset(&SIGTSTP_action.sa_mask);
+
 	// No flags set
 	SIGINT_action.sa_flags = 0;
-	sigaction(SIGINT, &SIGINT_action, NULL);
-
-	// Redirect ^Z to catchSIGTSTP()
-	struct sigaction SIGTSTP_action = { 0 };
-	SIGTSTP_action.sa_handler = catchSIGTSTP;
-	sigfillset(&SIGTSTP_action.sa_mask);
-    // No flags set
 	SIGTSTP_action.sa_flags = 0;
+
+	sigaction(SIGINT, &SIGINT_action, NULL);
 	sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
-    while(continueLoop) {
-        smallshRead(args, &bgProcess, inFile, outFile, pid);
-        
-        // to check if this is a comment or blank line
-        if (args[0][0] == '\n' || args[0][0] == '#'){
-					// nothing goes here becuase it is used to ignore stuff
-        }
-        // if command given is "exit"
-        else if (strcmp(args[0], builtIns[0]) == 0) {
-					printf("BYE\n");
-					// set continueLoop boolean flag to False - ends shell loop
-					continueLoop = 0;
-        }
-
-        // if command given is "cd"
-        else if (strcmp(args[0], builtIns[1]) == 0) {
-					// check args for target directory
-					if (args[1]) {
-						// use chdir() system call, and check if successful
-						if (chdir(args[1]) == -1) {
-							// if unsuccessful, print error message to user
-							printf("cd: no such file or directory found: %s\n", args[1]);
-							fflush(stdout);
-						}
-					} else {
-            // if there is no target directory, cd to home
-						chdir(getenv("HOME"));
-					}
-				// if command given in "status"
-        } else if (strcmp(args[0], "status") == 0) {
-					// get and print exit status
-					smallshExitStatus(exitStatus);
-        } else {
-					// or, execute whatever command given
-					smallshExecute(args, &exitStatus, SIGINT_action, &bgProcess, inFile, outFile);
-        }
-
-    // Reset variables
-		for (int i = 0; args[i]; i++) {
-			args[i] = NULL;
+	while(continueLoop) {
+		smallshRead(args, &bgProcess, inFile, outFile);
+		// to check if this is a comment or blank line
+		if (args[0][0] == '\0' || args[0][0] == '#'){
+			// continue
 		}
+		// if command given is "exit"
+		else if (strcmp(args[0], builtIns[0]) == 0) {
+			// set continueLoop boolean flag to False - ends shell loop
+			continueLoop = 0;
+		}
+
+		// if command given is "cd"
+		else if (strcmp(args[0], builtIns[1]) == 0) {
+			// check args for target directory
+			if (args[1]) {
+				printf("args[1] aka the dir we are trying to cd into is %s\n", args[1]);
+				// use chdir() syste m call, andcheck if successful
+				if (chdir(args[1]) == -1) {
+					// if unsuccessful, print error message to user
+					printf("cd: no such file or directory found: %s\n", args[1]);
+					fflush(stdout);
+				}
+			} else {
+				// if there is no target directory, cd to home
+				chdir(getenv("HOME"));
+			}
+		}
+		// if command given in "status"
+		else if (strcmp(args[0], builtIns[2]) == 0) {
+			// get and print exit status
+			smallshExitStatus(exitStatus);
+		} else {
+			// or, execute whatever command given
+			smallshExecute(args, &exitStatus, SIGINT_action, &bgProcess, inFile, outFile);
+		}
+
+		// Reset variables
+		for (int i = 0; args[i]; i++) { args[i] = NULL; }
 		bgProcess = 0;
 		inFile[0] = '\0';
 		outFile[0] = '\0';
-    }
-
-    return 0;
+	}
+	return 0;
 }
-
-
-// ./p3testscript > mytestresults 2>&1 
-/*
-PRE-SCRIPT INFO
-  Grading Script PID: 199774
-  Note: your smallsh will report a different PID when evaluating $$
-: BEGINNING TEST SCRIPT
-: 
-: --------------------
-: Using comment (5 points if only next prompt is displayed next)
-: : 
-: 
-: --------------------
-: ls (10 points for returning dir contents)
-: junk
-junk2
-makefile
-mytestresults
-otherfile.c
-p3testscript
-README.md
-smallsh
-smallsh.c
-smallsh.h
-uneditedFile.c
-: 
-: 
-: --------------------
-: ls out junk
-: : 
-: 
-: --------------------
-: cat junk (15 points for correctly returning contents of junk)
-: junk
-junk2
-makefile
-mytestresults
-otherfile.c
-p3testscript
-README.md
-smallsh
-smallsh.c
-smallsh.h
-uneditedFile.c
-: 
-: 
-: --------------------
-: wc in junk (15 points for returning correct numbers from wc)
-:  11  11 112
-: 
-: 
-: --------------------
-: wc in junk out junk2; cat junk2 (10 points for returning correct numbers from wc)
-: :  11  11 112
-: 
-: 
-: --------------------
-: test -f badfile (10 points for returning error value of 1, note extraneous &)
-: : Exit value 1
-: 
-: 
-: --------------------
-: wc in badfile (10 points for returning text error)
-: Unable to open input file
-: No such file or directory
-: 
-: 
-: --------------------
-: badfile (10 points for returning text error)
-: badfile: no such file or directory
-: 
-: 
-: --------------------
-: sleep 100 background (10 points for returning process ID of sleeper)
-: background pid is 199835
-: 
-: 
-: --------------------
-: pkill -signal SIGTERM sleep (10 points for pid of killed process, 10 points for signal)
-: (Ignore message about Operation Not Permitted)
-: pkill: killing pid 188796 failed: Operation not permitted
-pkill: killing pid 190913 failed: Operation not permitted
-pkill: killing pid 190978 failed: Operation not permitted
-pkill: killing pid 191457 failed: Operation not permitted
-pkill: killing pid 192856 failed: Operation not permitted
-pkill: killing pid 194305 failed: Operation not permitted
-pkill: killing pid 197830 failed: Operation not permitted
-pkill: killing pid 198164 failed: Operation not permitted
-pkill: killing pid 199467 failed: Operation not permitted
-pkill: killing pid 222355 failed: Operation not permitted
-pkill: killing pid 236863 failed: Operation not permitted
-child 199835 terminated
-Terminated by signal 15
-: 
-: 
-: --------------------
-: sleep 1 background (10 pts for pid of bg ps when done, 10 for exit value)
-: background pid is 199877
-: : 
-child 199877 terminated
-Exit value 0
-: 
-: --------------------
-: pwd
-: /nfs/stak/users/stuttsk/cs344/A3
-: 
-: 
-: --------------------
-: cd
-: : 
-: 
-: --------------------
-: pwd (10 points for being in the HOME dir)
-: /nfs/stak/users/stuttsk/cs344/A3
-: 
-: 
-: --------------------
-: mkdir 199781
-: : 
-: 
-: --------------------
-: cd 199781
-: : 
-: 
-: --------------------
-: pwd (5 points for being in the newly created dir)
-: /nfs/stak/users/stuttsk/cs344/A3
-: --------------------
-: background pid is 200036
-: Testing foreground-only mode (20 points for entry
-Entering foreground-only mode (& is now ignored)
-child 200036 terminated
-Exit value 0
-: Wed Oct 28 19:42:30 PDT 2020
-child 200037 terminated
-Exit value 0
-: : Wed Oct 28 19:42:35 PDT 2020
-: Exiting foreground-only mode
-: BYE
-
-*/
