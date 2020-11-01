@@ -35,54 +35,53 @@ void smallshRead(char* arr[], int* bgProcess, char inputName[], char outputName[
 			return;
 		}
 
+	
     // for use with strtok_r
-    char *saveptr;
+    // char *saveptr;
 
     // read the buffer and save each word into tokens
     // this is adapted from bits in Assignment 1 and Assignment 2 
-    char *token = strtok_r(buffer, " ", &saveptr); 
+    char *token = strtok(buffer, " "); 
 
     for (i = 0; token; i++) {
+			// printf("i = %d\n", i);
 		// Check for & to be a background process
 		if (strcmp(token, "&") == 0) { // should this be !strcmp or == 0?
+			printf("background process allowed \n");
 			*bgProcess = 1;
 		}
 		// Check for < to denote input file
 		else if (strcmp(token, "<") == 0) {
-			token = strtok_r(NULL, " ", &saveptr); 
+			// printf("input redirection here \n");
+			token = strtok(NULL, " "); 
 			strcpy(inputName, token);
+
 		}
 		// Check for > to denote output file
 		else if (strcmp(token, ">") == 0) {
-			token = strtok_r(NULL, " ", &saveptr); 
+			// printf("output redirection here \n");
+			token = strtok(NULL, " "); 
 			strcpy(outputName, token);
 		}
 		// Otherwise, it's part of the command!
 		else {
-	
-			arr[i] = strdup(token); // ls, cd, mkdir etc	
-			// printf("arr[i] = %s\n", arr[i]); // first part of command
-      // checking if command ends in $$ for variable expansion
+			// printf("another command i guess \n");
+			arr[i] = strdup(token); // ls, cd, mkdir etc
+			// printf("arr[i] = %s \n", arr[i]);	
+			// checking if command ends in $$ for variable expansion
+			// printf("buffer: %s\n", buffer);
+			
 			for (j = 0; arr[i][j]; j++) {
 				if (arr[i][j] == '$' && arr[i][j+1] == '$') {
-					// printf("VARIABLE EXPANSION!!!\n");
-					// printf("inside for loop, arr[i] is= %s\n", arr[i]);
-					// printf("arr[i]= %s\n", arr[i]);
-					// printf("arr[i][j]= %s\n", arr[i][j]);
-					// printf("arr[i][j+1]= %s\n", arr[i][j+1]);
+					// null terminate string at $$
 					arr[i][j] = '\0';
-          // arr[i][j+1] = '\0'; // maybe this doesn't need to be here?
-					// arr[i][j] = getpid();
-					// printf("inside for loop but after the reassignment, arr[i] is= %s\n", arr[i]);
-					
-					// when first arg is buffer, i get testdir, but no $$ ?? 
-					snprintf(arr[i], 2048, "%s%d", arr[i], getpid()); 
-					// printf("%s", arr[i]);
+					// write to the output stream, "testdir PID"
+					sprintf(arr[i], "%s%d", arr[i], getpid()); 
 				}
 			}
 		}
-		// Next!
-		token = strtok_r(NULL, " ", &saveptr); 
+		// // Next!
+		token = strtok(NULL, " "); 
     }
 }
 
@@ -121,7 +120,7 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, int* bgP
 					perror("source dup2()");
 					exit(2);
 				}
-				// trigger its close
+				// close the file descriptor
 				fcntl(sourceFD, F_SETFD, FD_CLOEXEC);
 			}
 
@@ -207,6 +206,7 @@ void smallshExitStatus(int childStatus) {
 int main() {
 	// to store built in commands 
 	const char *builtIns[] = {"exit", "cd", "status"};
+	int pid = getpid();
 	// the shell loop will continue until this is 0
 	int continueLoop = 1;
 	int exitStatus = 0;
@@ -258,8 +258,8 @@ int main() {
 		else if (strcmp(args[0], builtIns[1]) == 0) {
 			// check args for target directory
 			if (args[1]) {
-				printf("args[1] aka the dir we are trying to cd into is %s\n", args[1]);
-				// use chdir() syste m call, andcheck if successful
+				// printf("args[1] aka the dir we are trying to cd into is %s\n", args[1]);
+				// use chdir() system call, andcheck if successful
 				if (chdir(args[1]) == -1) {
 					// if unsuccessful, print error message to user
 					printf("cd: no such file or directory found: %s\n", args[1]);
