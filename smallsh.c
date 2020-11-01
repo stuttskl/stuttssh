@@ -17,12 +17,10 @@ void smallshRead(char* arr[], int* bgProcess, char inputName[], char outputName[
 
     char buffer[MAX_LEN]; // buffer that can store up to 2048 elements
 		int i, j;
-    // print : in cyan 
-		// printf("\033[0;36m");
+    
 		// print prompt (:) to the user
     printf(": ");
-		// reset text color
-		// printf("\033[0m");
+		
     fflush(stdout);
     // get full command from standard in
     fgets(buffer, MAX_LEN, stdin); 
@@ -34,10 +32,6 @@ void smallshRead(char* arr[], int* bgProcess, char inputName[], char outputName[
 			arr[0] = strdup("");
 			return;
 		}
-
-	
-    // for use with strtok_r
-    // char *saveptr;
 
     // read the buffer and save each word into tokens
     // this is adapted from bits in Assignment 1 and Assignment 2 
@@ -63,13 +57,10 @@ void smallshRead(char* arr[], int* bgProcess, char inputName[], char outputName[
 			token = strtok(NULL, " "); 
 			strcpy(outputName, token);
 		}
-		// Otherwise, it's part of the command!
 		else {
 			// printf("another command i guess \n");
 			arr[i] = strdup(token); // ls, cd, mkdir etc
-			// printf("arr[i] = %s \n", arr[i]);	
-			// checking if command ends in $$ for variable expansion
-			// printf("buffer: %s\n", buffer);
+
 			
 			for (j = 0; arr[i][j]; j++) {
 				if (arr[i][j] == '$' && arr[i][j+1] == '$') {
@@ -206,7 +197,6 @@ void smallshExitStatus(int childStatus) {
 int main() {
 	// to store built in commands 
 	const char *builtIns[] = {"exit", "cd", "status"};
-	int pid = getpid();
 	// the shell loop will continue until this is 0
 	int continueLoop = 1;
 	int exitStatus = 0;
