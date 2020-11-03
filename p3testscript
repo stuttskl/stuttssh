@@ -4,7 +4,7 @@ echo "PRE-SCRIPT INFO"
 echo "  Grading Script PID: $$"
 echo '  Note: your smallsh will report a different PID when evaluating $$'
 
-./main <<'___EOF___'
+./smallsh <<'___EOF___'
 echo BEGINNING TEST SCRIPT
 echo
 echo --------------------

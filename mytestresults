@@ -1,18 +1,16 @@
 PRE-SCRIPT INFO
-  Grading Script PID: 249899
+  Grading Script PID: 42443
   Note: your smallsh will report a different PID when evaluating $$
 : BEGINNING TEST SCRIPT
 : 
 : --------------------
 : Using comment (5 points if only next prompt is displayed next)
-: : COMMENT SHOULD DO NOTHING
+: : 
 : 
 : --------------------
 : ls (10 points for returning dir contents)
 : junk
 junk2
-main
-main.c
 makefile
 mytestresults
 p3testscript
@@ -30,8 +28,6 @@ smallsh.h
 : cat junk (15 points for correctly returning contents of junk)
 : junk
 junk2
-main
-main.c
 makefile
 mytestresults
 p3testscript
@@ -43,23 +39,22 @@ smallsh.h
 : 
 : --------------------
 : wc in junk (15 points for returning correct numbers from wc)
-: 11 11 97
+:  9  9 85
 : 
 : 
 : --------------------
 : wc in junk out junk2; cat junk2 (10 points for returning correct numbers from wc)
-: : 11 11 97
+: :  9  9 85
 : 
 : 
 : --------------------
 : test -f badfile (10 points for returning error value of 1, note extraneous &)
-: : exit value 1
+: : Exit value 1
 : 
 : 
 : --------------------
 : wc in badfile (10 points for returning text error)
-: Unable to open input file
-: No such file or directory
+: source open(): No such file or directory
 : 
 : 
 : --------------------
@@ -69,27 +64,58 @@ smallsh.h
 : 
 : --------------------
 : sleep 100 background (10 points for returning process ID of sleeper)
-: background pid is 249958
+: background pid is 42513
 : 
 : 
 : --------------------
 : pkill -signal SIGTERM sleep (10 points for pid of killed process, 10 points for signal)
 : (Ignore message about Operation Not Permitted)
-: pkill: killing pid 237234 failed: Operation not permitted
-pkill: killing pid 237729 failed: Operation not permitted
-pkill: killing pid 240554 failed: Operation not permitted
-pkill: killing pid 244619 failed: Operation not permitted
-pkill: killing pid 247647 failed: Operation not permitted
-pkill: killing pid 248650 failed: Operation not permitted
-child 249958 terminated
-terminated by signal 15
+: pkill: killing pid 8628 failed: Operation not permitted
+pkill: killing pid 9020 failed: Operation not permitted
+pkill: killing pid 10439 failed: Operation not permitted
+pkill: killing pid 12840 failed: Operation not permitted
+pkill: killing pid 14861 failed: Operation not permitted
+pkill: killing pid 16677 failed: Operation not permitted
+pkill: killing pid 19581 failed: Operation not permitted
+pkill: killing pid 23126 failed: Operation not permitted
+pkill: killing pid 24890 failed: Operation not permitted
+pkill: killing pid 25272 failed: Operation not permitted
+pkill: killing pid 25383 failed: Operation not permitted
+pkill: killing pid 26902 failed: Operation not permitted
+pkill: killing pid 28287 failed: Operation not permitted
+pkill: killing pid 28815 failed: Operation not permitted
+pkill: killing pid 29758 failed: Operation not permitted
+pkill: killing pid 32451 failed: Operation not permitted
+pkill: killing pid 33384 failed: Operation not permitted
+pkill: killing pid 34702 failed: Operation not permitted
+pkill: killing pid 35010 failed: Operation not permitted
+pkill: killing pid 37327 failed: Operation not permitted
+pkill: killing pid 37822 failed: Operation not permitted
+pkill: killing pid 38480 failed: Operation not permitted
+pkill: killing pid 39522 failed: Operation not permitted
+pkill: killing pid 39559 failed: Operation not permitted
+pkill: killing pid 41723 failed: Operation not permitted
+pkill: killing pid 42292 failed: Operation not permitted
+pkill: killing pid 42327 failed: Operation not permitted
+pkill: killing pid 135143 failed: Operation not permitted
+pkill: killing pid 144891 failed: Operation not permitted
+pkill: killing pid 164056 failed: Operation not permitted
+pkill: killing pid 203848 failed: Operation not permitted
+pkill: killing pid 207221 failed: Operation not permitted
+pkill: killing pid 216597 failed: Operation not permitted
+pkill: killing pid 258769 failed: Operation not permitted
+pkill: killing pid 269360 failed: Operation not permitted
+pkill: killing pid 285365 failed: Operation not permitted
+pkill: killing pid 289390 failed: Operation not permitted
+pkill: killing pid 300320 failed: Operation not permitted
+pkill: killing pid 312321 failed: Operation not permitted
+background pid 42513 is done: Terminated by signal 15
 : 
 : 
 : --------------------
 : sleep 1 background (10 pts for pid of bg ps when done, 10 for exit value)
-: background pid is 249984
-: child 249984 terminated
-exit value 0
+: background pid is 42597
+: background pid 42597 is done: Exit value 0
 : 
 : 
 : --------------------
@@ -107,25 +133,24 @@ exit value 0
 : 
 : 
 : --------------------
-: mkdir 249901
+: mkdir testdir42444
 : : 
 : 
 : --------------------
-: cd 249901
+: cd testdir42444
 : : 
 : 
 : --------------------
 : pwd (5 points for being in the newly created dir)
-: /nfs/stak/users/stuttsk/249901
+: /nfs/stak/users/stuttsk/testdir42444
 : --------------------
-: background pid is 250152
+: background pid is 42813
 : Entering foreground-only mode (& is now ignored)
 Testing foreground-only mode (20 points for entry
-: Tue Oct 27 11:19:17 PDT 2020
-child 250152 terminated
-exit value 0
-child 250153 terminated
-exit value 0
-: : Tue Oct 27 11:19:22 PDT 2020
+: Tue Nov  3 14:11:47 PST 2020
+background pid 42813 is done: Exit value 0
+background pid 42814 is done: Exit value 0
+: background pid is 42818
+: Tue Nov  3 14:11:47 PST 2020
 : Exiting foreground-only mode
 : 

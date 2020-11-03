@@ -1,1 +1,4 @@
-void commandPrompt();
+// header file
+
+#include <signal.h>
+
