@@ -1,3 +1,10 @@
+/*
+Katie Stutts
+Nov 3rd, 2020
+CS 344: Operating Systems
+Assignment 3: smallsh
+*/
+
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -11,71 +18,80 @@
 #define MAX_LEN 2048 // for max command line length
 #define MAX_ARGS 512 // for max arguments length
 
+// global variable to flag if background processes are allowed
 int allowBackground = 1;
 
+/*
+smallshRead handles the reading of input from standard in. Utilizes strtok to 
+parse words from the input buffer and stores into variables for later use
+*/
 void smallshRead(char* arr[], int* bgProcess, char inputName[], char outputName[]) {
+	// buffer that can store up to 2048 elements
+	char buffer[MAX_LEN]; 
+	
+	// print prompt (:) to the user
+	printf(": ");
+	
+	// flush the standard out
+	fflush(stdout);
+	// get full command from standard in using fgets
+	fgets(buffer, MAX_LEN, stdin); 
+	// strip newline
+	buffer[strcspn(buffer, "\n")] = 0;
 
-    char buffer[MAX_LEN]; // buffer that can store up to 2048 elements
-		int i, j;
-    
-		// print prompt (:) to the user
-    printf(": ");
-		
-    fflush(stdout);
-    // get full command from standard in
-    fgets(buffer, MAX_LEN, stdin); 
-    // strip newline
-    buffer[strcspn(buffer, "\n")] = 0;
-    // printf("Your command is %s \n", buffer);
-		// If it's blank, return blank
-		if (!strcmp(buffer, "")) {
-			arr[0] = strdup("");
-			return;
-		}
+	// if (!strcmp(buffer, "")) {
+	// 		arr[0] = strdup("");
+	// 		return;
+	// 	}
 
-    // read the buffer and save each word into tokens
-    // this is adapted from bits in Assignment 1 and Assignment 2 
-    char *token = strtok(buffer, " "); 
+	// read the buffer and save each word into tokens
+	// this is adapted from bits in Assignment 1 and Assignment 2 
+	char *token = strtok(buffer, " "); 
 
-    for (i = 0; token; i++) {
-			// printf("i = %d\n", i);
-		// Check for & to be a background process
-		if (strcmp(token, "&") == 0) { // should this be !strcmp or == 0?
-			printf("background process allowed \n");
-			*bgProcess = 1;
-		}
-		// Check for < to denote input file
-		else if (strcmp(token, "<") == 0) {
-			// printf("input redirection here \n");
-			token = strtok(NULL, " "); 
-			strcpy(inputName, token);
+	for (int i = 0; token; i++) {
+	// if a & is encountered, flip the bgProcess boolean flag to "true"
+	if (strcmp(token, "&") == 0) { 
+		// printf("background process allowed \n");
+		*bgProcess = 1;
+	}
+	// if a < is encountered, input redirection is occuring
+	else if (strcmp(token, "<") == 0) {
+		// printf("input redirection here \n");
+		token = strtok(NULL, " "); 
+		// copy to variable inputName
+		strcpy(inputName, token);
 
-		}
-		// Check for > to denote output file
-		else if (strcmp(token, ">") == 0) {
-			// printf("output redirection here \n");
-			token = strtok(NULL, " "); 
-			strcpy(outputName, token);
-		}
-		else {
-			// printf("another command i guess \n");
-			arr[i] = strdup(token); // ls, cd, mkdir etc
+	}
+	// if a < is encountered, outout redirection is occuring
+	else if (strcmp(token, ">") == 0) {
+		// printf("output redirection here \n");
+		token = strtok(NULL, " "); 
+		// copy to variable outputName
+		strcpy(outputName, token);
+	}
+	else {
+		// else, it is another command
+		arr[i] = strdup(token); // ls, cd, mkdir etc
 
-			
-			for (j = 0; arr[i][j]; j++) {
-				if (arr[i][j] == '$' && arr[i][j+1] == '$') {
-					// null terminate string at $$
-					arr[i][j] = '\0';
-					// write to the output stream, "testdir PID"
-					sprintf(arr[i], "%s%d", arr[i], getpid()); 
-				}
+		// this checks for $$ to see if variable expansion is necessary
+		for (int j = 0; arr[i][j]; j++) {
+			// check if last two elems are $
+			if (arr[i][j] == '$' && arr[i][j+1] == '$') {
+				// null terminate string at $$
+				arr[i][j] = '\0';
+				// write to the output stream, "testdir PID"
+				sprintf(arr[i], "%s%d", arr[i], getpid()); 
 			}
 		}
-		// // Next!
-		token = strtok(NULL, " "); 
-    }
+	}
+	// advance to the next token
+	token = strtok(NULL, " "); 
+	}
 }
 
+/*
+smallshExecute handles 
+*/
 void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, int* bgProcess, char inFileName[], char outFileName[]) {
     // to track whether stdin/stdout redirection is successful, or if an err occured
 		int result;
@@ -99,14 +115,16 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, int* bgP
 			// https://repl.it/@cs344/54redirectc#main.c
 			// https://repl.it/@cs344/54sortViaFilesc
 			if (strcmp(inFileName, "")) {
-				// open the source file
+				// open the source file as read only
 				int sourceFD = open(inFileName, O_RDONLY);
+				// if this failed, print an error message and exit
 				if (sourceFD == -1) {
 					perror("source open()");
 					exit(1);
 				}
 				// Redirect stdin to source file, 0 is reading from terminal
 				result = dup2(sourceFD, 0);
+				// if this failed, print an error message and exit
 				if (result == -1) {
 					perror("source dup2()");
 					exit(2);
@@ -117,13 +135,15 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, int* bgP
 
 			if (strcmp(outFileName, "")) {
 				// open the target file
-				int targetFD = open(outFileName, O_WRONLY | O_CREAT | O_TRUNC, 0666); // or 0644
+				int targetFD = open(outFileName, O_WRONLY | O_CREAT | O_TRUNC, 0666); 
+				// if this failed, print an error message and exit
 				if (targetFD == -1) {
 					perror("target open()");
 					exit(1);
 			}
 			// Redirect stdout to target file, 1 is writing to terminal
 			result = dup2(targetFD, 1);
+			// if this failed, print an error message and exit
 			if (result == -1) {
 				perror("target dup2()"); 
 				exit(2);
@@ -133,7 +153,8 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, int* bgP
 			fcntl(targetFD, F_SETFD, FD_CLOEXEC);
 			}
 			
-			// Execute it!
+			// use execvp() to execute command given
+			// https://oregonstate.instructure.com/courses/1784217/pages/exploration-process-api-executing-a-new-program?module_item_id=19893097
 			if (execvp(arr[0], (char* const*)arr)) {
 				printf("%s: no such file or directory\n", arr[0]);
 				fflush(stdout);
@@ -142,39 +163,42 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, int* bgP
 			break;
 		
 		default:	
-			// Execute a process in the background ONLY if allowBackground
+			// if bg processes are allowed and if bg process boolean flag is true
 			if (*bgProcess && allowBackground) {
+				// https://repl.it/@cs344/42waitpidnohangc
 				pid_t actualPid = waitpid(spawnpid, childStatus, WNOHANG);
 				printf("background pid is %d\n", spawnpid);
 				fflush(stdout);
 			}
-			// Otherwise execute it like normal
+			// else, execute command w/o dealing with bg process
 			else {
 				pid_t actualPid = waitpid(spawnpid, childStatus, 0);
 			}
 
-		// Check for terminated background processes!	
+		// https://repl.it/@cs344/42waitpidexitc#main.c
 		while ((spawnpid = waitpid(-1, childStatus, WNOHANG)) > 0) {
-			printf("child %d terminated\n", spawnpid);
+			// printf("child %d terminated\n", spawnpid); // not sure if this needs to be here
 			smallshExitStatus(*childStatus);
 			fflush(stdout);
 		}
 	}
-
 }
 
+/*
+
+*/
 void catchSIGTSTP(int signo) {
 	// If it's 1, set it to 0 and display a message reentrantly
 	if (allowBackground == 1) {
 		char* message = "Entering foreground-only mode (& is now ignored)\n";
-		write(1, message, 49); // 50?
+		write(1, message, 49); 
 		fflush(stdout);
 		allowBackground = 0;
 	}
 	// If it's 0, set it to 1 and display a message reentrantly
 	else {
 		char* message = "Exiting foreground-only mode\n";
-		write (1, message, 29); // 30?
+		write (1, message, 29); 
 		fflush(stdout);
 		allowBackground = 1;
 	}
@@ -194,6 +218,9 @@ void smallshExitStatus(int childStatus) {
 	}
 }
 
+/*
+
+*/
 int main() {
 	// to store built in commands 
 	const char *builtIns[] = {"exit", "cd", "status"};
