@@ -13,7 +13,6 @@ Assignment 3: smallsh
 #include <signal.h>
 #include <fcntl.h>
 #include <sys/wait.h>
-#include "smallsh.h"
 
 #define MAX_LEN 2048 // for max command line length
 #define MAX_ARGS 512 // for max arguments length
@@ -24,7 +23,6 @@ void smallshExecute(char*[], int*, struct sigaction, char[], char[]);
 void smallshExitStatus(int);
 void catchSIGTSTP();
 
-
 // global variable to flag if background processes are allowed
 int allowBackground = 1;
 int fg_mode = 0;
@@ -33,15 +31,16 @@ int bg_process = 0;
 /*
 catchSIGTSTP checks whether to enter or exit foreground-only mode
 */
-void catchSIGTSTP() {
+void catchSIGTSTP(int signo) {
 	if (fg_mode == 0) {
-		fg_mode = 1; 
+        fg_mode = 1; 
 		char* message = "Entering foreground-only mode (& is now ignored)\n";
 		write(1, message, 49);
 		fflush(stdout); //ensure output
+        // allowBackground = 0;
 	} else {
 		fg_mode = 0;
-		char* message = "Exiting foreground-only mode\n";
+        char* message = "Exiting foreground-only mode\n";
 		write(1, message, 29);
 		fflush(stdout);
 	}
@@ -228,7 +227,7 @@ void smallshExitStatus(int childStatus) {
 	// WIFEXITED returns true if child was terminated normally
 	if (WIFEXITED(childStatus) != 0) {
 		// WEXITSTATUS returns the status value the child passed to exit()
-		printf("Exit value %d\n", WEXITSTATUS(childStatus));
+		printf("exit value %d\n", WEXITSTATUS(childStatus));
 		fflush(stdout);
 	} else {
 		// WTERMSIG will return the signal number that caused the child to terminate
@@ -265,13 +264,17 @@ int main() {
 	struct sigaction SIGINT_action = { 0 };
 	struct sigaction SIGTSTP_action = { 0 };
 
-	// pass in sig handler with constant, indicating it should be ignored
-	SIGINT_action.sa_handler = SIG_IGN;
-	// bg/fg mode checker and switcher
+    SIGINT_action.sa_handler = SIG_IGN;
+    // bg/fg mode checker and switcher
 	SIGTSTP_action.sa_handler = catchSIGTSTP;
+    // SIGTSTP_action.sa_flags = SA_RESTART; // reset the state before interrupt
 
-	// Block all catchable signals while handle_SIGINT is running
+
+    // Block all catchable signals while handle_SIGINT is running
 	sigfillset(&SIGINT_action.sa_mask);
+	// pass in sig handler with constant, indicating it should be ignored
+	// SIGINT_action.sa_handler = SIG_IGN;
+	
 	sigfillset(&SIGTSTP_action.sa_mask);
 
 	// No flags set
