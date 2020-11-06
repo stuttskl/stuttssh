@@ -17,96 +17,86 @@ Assignment 3: smallsh
 #define MAX_LEN 2048 // for max command line length
 #define MAX_ARGS 512 // for max arguments length
 
-// function prototypes
-void smallshRead(char*[], char[], char[]);
-void smallshExecute(char*[], int*, struct sigaction, char[], char[]);
-void smallshExitStatus(int);
-void catchSIGTSTP();
-
 // global variable to flag if background processes are allowed
 int allowBackground = 1;
-int fg_mode = 0;
-int bg_process = 0;
 
-/*
-catchSIGTSTP checks whether to enter or exit foreground-only mode
-*/
-void catchSIGTSTP(int signo) {
-	if (fg_mode == 0) {
-        fg_mode = 1; 
-		char* message = "Entering foreground-only mode (& is now ignored)\n";
-		write(1, message, 49);
-		fflush(stdout); //ensure output
-        // allowBackground = 0;
-	} else {
-		fg_mode = 0;
-        char* message = "Exiting foreground-only mode\n";
-		write(1, message, 29);
-		fflush(stdout);
-	}
-}
+// function prototypes
+void smallshRead(char* arr[], int* bgProcess, char inputName[], char outputName[]);
+void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, int* bgProcess, char inFileName[], char outFileName[]);
+void smallshExitStatus(int childStatus);
+void catchSIGTSTP(int signo);
 
 /*
 smallshRead handles the reading of input from standard in. Utilizes strtok to 
 parse words from the input buffer and stores into variables for later use
 */
-void smallshRead(char* arr[], char inputName[], char outputName[]) {
-	// buffer that can store up to 2048 elements
-	char buffer[MAX_LEN]; 
-	
-	// print prompt (:) to the user
-	printf(": ");
-	// flush the standard out
-	fflush(stdout);
-	// get full command from standard in using fgets
-	fgets(buffer, MAX_LEN, stdin); 
-	// strip newline
-	buffer[strcspn(buffer, "\n")] = 0;
-
-	// read the buffer and save each word into tokens
-	// this is adapted from bits in Assignment 1 and Assignment 2 
-	char *token = strtok(buffer, " "); 
-
-	for (int i = 0; token; i++) {
-	// if a & is encountered, flip the bgProcess boolean flag to "true"
-	if (strcmp(token, "&") == 0) { 
-		bg_process = 1;
-	}
-	// if a < is encountered, input redirection is occuring
-	else if (strcmp(token, "<") == 0) {
-		token = strtok(NULL, " "); 
-		// copy to variable inputName
-		strcpy(inputName, token);
-	}
-	// if a > is encountered, outout redirection is occuring
-	else if (strcmp(token, ">") == 0) {
-		token = strtok(NULL, " "); 
-		// copy to variable outputName
-		strcpy(outputName, token);
-	}
-	else {
-		// else, it is another command
-		arr[i] = strdup(token); // ls, cd, mkdir etc
-		// this checks for $$ to see if variable expansion is necessary
-		for (int j = 0; arr[i][j]; j++) {
-			// check if last two elems are $
-			if (arr[i][j] == '$' && arr[i][j+1] == '$') {
-				// null terminate string at $$
-				arr[i][j] = '\0';
-				// write to the output stream, "testdir PID"
-				sprintf(arr[i], "%s%d", arr[i], getpid()); 
-			}
+void smallshRead(char* arr[], int* bgProcess, char inputName[], char outputName[]) {
+    char buffer[MAX_LEN]; // buffer that can store up to 2048 elements
+    
+		// print prompt (:) to the user
+    printf(": ");
+		
+    fflush(stdout);
+    // get full command from standard in
+    fgets(buffer, MAX_LEN, stdin); 
+    // strip newline
+    buffer[strcspn(buffer, "\n")] = 0;
+    // printf("Your command is %s \n", buffer);
+		
+		// if input is blank, return empty string
+		if (!strcmp(buffer, "")) {
+			arr[0] = strdup("");
+			return;
 		}
-	}
-	// advance to the next token
-	token = strtok(NULL, " "); 
-	}
+
+    // read the buffer and save each word into tokens
+    // this is adapted from bits in Assignment 1 and Assignment 2 
+    char *token = strtok(buffer, " "); 
+
+    for (int i = 0; token; i++) {
+			// if a & is encountered and if it's the last char in the string
+			// flip the bgProcess boolean flag to "true"
+			if (strcmp(token, "&") == 0 && strrchr(token, '\0')[-1]) { 
+				// printf("background process allowed \n");
+				*bgProcess = 1;
+			}
+			// if a < is encountered, input redirection is occuring
+			else if (strcmp(token, "<") == 0) {
+				// printf("input redirection here \n");
+				token = strtok(NULL, " "); 
+				strcpy(inputName, token);
+			}
+			// if a > is encountered, outout redirection is occuring
+			else if (strcmp(token, ">") == 0) {
+				// printf("output redirection here \n");
+				token = strtok(NULL, " "); 
+				strcpy(outputName, token);
+			}
+			else {
+				// else, it is another command
+				arr[i] = strdup(token); // ls, cd, mkdir etc
+				// this checks for $$ to see if variable expansion is necessary
+				for (int j = 0; arr[i][j]; j++) {
+					// check if last two elems are $
+					if (arr[i][j] == '$' && arr[i][j+1] == '$') {
+						// null terminate string at $$
+						arr[i][j] = '\0';
+						// write to the output stream, "testdir PID"
+						sprintf(arr[i], "%s%d", arr[i], getpid()); 
+					}
+				}
+		}
+		// move along to next token
+		token = strtok(NULL, " "); 
+    }
 }
 
 /*
-smallshExecute handles 
+smallshExecute handles the main execution of commands. 
+makes use of a switch statement to control the flow over whether a child or parent
+process will be running a given branch of code. Also handles any I/O redirection
 */
-void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, char inFileName[], char outFileName[]) {
+void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, int* bgProcess, char inFileName[], char outFileName[]) {
     // to track whether stdin/stdout redirection is successful, or if an err occured
 		int result;
     // much of this code was from the Canvas module/replit: 
@@ -118,18 +108,16 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, char inF
 			// Code in this branch will be exected by the parent when fork() fails and the creation of child process fails as well
 			case -1:
 				perror("fork() failed!");
-				// fflush(stdout);
 				exit(1);
 				break;
 			// spawnpid is 0. This means the child will execute the code in this branch
 			case 0:	
 			// set signal handler back to default (cntrl C)
-			// sigaction(SIGTSTP, &sa, NULL);
 			sa.sa_handler = SIG_DFL;
 			sigaction(SIGINT, &sa, NULL);
 
 			// redirect output to /dev/null if otherwise not specified
-			if(bg_process == 1) {
+			if(allowBackground == 1) {
 				int targetFD = open("/dev/null", O_WRONLY);
 				if (targetFD == -1) {
 					fprintf(stderr, "cannot access /dev/null\n");
@@ -141,7 +129,7 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, char inF
 			// https://repl.it/@cs344/54redirectc#main.c
 			// https://repl.it/@cs344/54sortViaFilesc
 			if (strcmp(inFileName, "")) {
-				// open the source file as read only
+				// open the source file
 				int sourceFD = open(inFileName, O_RDONLY);
 				// if this failed, print an error message and exit
 				if (sourceFD == -1) {
@@ -161,7 +149,7 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, char inF
 
 			if (strcmp(outFileName, "")) {
 				// open the target file
-				int targetFD = open(outFileName, O_WRONLY | O_CREAT | O_TRUNC, 0666); 
+				int targetFD = open(outFileName, O_WRONLY | O_CREAT | O_TRUNC, 0666); // or 0644
 				// if this failed, print an error message and exit
 				if (targetFD == -1) {
 					perror("target open()");
@@ -188,9 +176,8 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, char inF
 			}
 			break;
 		default:	
-			// if bg processes are allowed 
-			if (bg_process == 1 && allowBackground == 1) {
-				// https://repl.it/@cs344/42waitpidnohangc
+			// execute a process in the background ONLY if allowBackground
+			if (*bgProcess && allowBackground) {
 				pid_t actualPid = waitpid(spawnpid, childStatus, WNOHANG);
 				printf("background pid is %d\n", spawnpid);
 				fflush(stdout);
@@ -198,22 +185,38 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, char inF
 			// else, execute command w/o dealing with bg process
 			else {
 				pid_t actualPid = waitpid(spawnpid, childStatus, 0);
-				// waitpid(spawnpid, childStatus, 0);
 			}
+
+		// https://repl.it/@cs344/42waitpidexitc#main.c
+		// -1 to wait for any child process
+		while ((spawnpid = waitpid(-1, childStatus, WNOHANG)) > 0) {
+			printf("child %d terminated: ", spawnpid);
+			smallshExitStatus(*childStatus);
+			fflush(stdout);
 		}
-
-			// https://repl.it/@cs344/42waitpidexitc#main.c
-			// -1 to wait for any child process
-			while ((spawnpid = waitpid(-1, childStatus, WNOHANG)) > 0) {
-				printf("background pid %d is done: ", spawnpid); // not sure if this needs to be here
-				fflush(stdout);
-				smallshExitStatus(*childStatus);
-				// fflush(stdout);
-			}
 	}
+}
 
-
-
+/*
+catchSIGTSTP checks whether to enter or exit foreground-only mode,
+and toggles accordingly
+*/
+void catchSIGTSTP(int signo) {
+	// enter into fg mode, write message than flip bool flag
+	if (allowBackground == 1) {
+		char* message = "Entering foreground-only mode (& is now ignored)\n";
+		write(1, message, 49); 
+		fflush(stdout);
+		allowBackground = 0;
+	}
+	// else, do the inverse
+	else {
+		char* message = "Exiting foreground-only mode\n";
+		write (1, message, 29); 
+		fflush(stdout);
+		allowBackground = 1;
+	}
+}
 
 /*
 Checks for terimation status of a child process. 
@@ -225,13 +228,13 @@ https://oregonstate.instructure.com/courses/1784217/pages/exploration-process-ap
 // https://repl.it/@cs344/42waitpidexitc#main.c
 void smallshExitStatus(int childStatus) {
 	// WIFEXITED returns true if child was terminated normally
-	if (WIFEXITED(childStatus) != 0) {
+	if (WIFEXITED(childStatus)) {
 		// WEXITSTATUS returns the status value the child passed to exit()
 		printf("exit value %d\n", WEXITSTATUS(childStatus));
 		fflush(stdout);
 	} else {
 		// WTERMSIG will return the signal number that caused the child to terminate
-		printf("Terminated by signal %d\n", WTERMSIG(childStatus));
+		printf("terminated by signal %d\n", WTERMSIG(childStatus));
 		fflush(stdout);
 	}
 }
@@ -248,33 +251,31 @@ int main() {
 	const char *builtIns[] = {"exit", "cd", "status"};
 	// the shell loop will continue until this is 0
 	int continueLoop = 1;
-	int childExitStatus = 0;
+	int exitStatus = 0;
 	// this acts as a boolean flag to indicate whether background processes
-	// int bgProcess = 0;
+	int bgProcess = 0;
 	// to hold input file name
 	char inFile[256] = "";
 	// to hold output file name
 	char outFile[256] = "";
 	char* args[512];
-	for (int i = 0; i < MAX_ARGS; i++) { args[i] = NULL; }
+	// set args array to null
+	for (int i = 0; i < MAX_ARGS; i++) {
+		args[i] = NULL;
+	}
 
-	/*******************--SIGNAL HANDLERS--****************************/
+	/*******************--SIGNAL HANDLERS--****************************/	
 	// https://repl.it/@cs344/53siguserc#signalexample.c	
 	// declare sigaction STRUCT 
 	struct sigaction SIGINT_action = { 0 };
 	struct sigaction SIGTSTP_action = { 0 };
 
-    SIGINT_action.sa_handler = SIG_IGN;
-    // bg/fg mode checker and switcher
-	SIGTSTP_action.sa_handler = catchSIGTSTP;
-    // SIGTSTP_action.sa_flags = SA_RESTART; // reset the state before interrupt
-
-
-    // Block all catchable signals while handle_SIGINT is running
-	sigfillset(&SIGINT_action.sa_mask);
 	// pass in sig handler with constant, indicating it should be ignored
-	// SIGINT_action.sa_handler = SIG_IGN;
-	
+	SIGINT_action.sa_handler = SIG_IGN;
+	SIGTSTP_action.sa_handler = catchSIGTSTP;
+
+	// Block all catchable signals while handle_SIGINT is running
+	sigfillset(&SIGINT_action.sa_mask);
 	sigfillset(&SIGTSTP_action.sa_mask);
 
 	// No flags set
@@ -284,8 +285,9 @@ int main() {
 	sigaction(SIGINT, &SIGINT_action, NULL);
 	sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
+	/*******************--MAIN SHELL LOOP--************************/
 	while(continueLoop) {
-		smallshRead(args, inFile, outFile);
+		smallshRead(args, &bgProcess, inFile, outFile);
 		// to check if this is a comment or blank line
 		if (args[0][0] == '\0' || args[0][0] == '#'){
 			// continue with next prompt
@@ -295,11 +297,11 @@ int main() {
 			// set continueLoop boolean flag to False - ends shell loop
 			continueLoop = 0;
 		}
-
 		// if command given is "cd"
 		else if (strcmp(args[0], builtIns[1]) == 0) {
 			// check args for target directory
 			if (args[1]) {
+				// printf("args[1] aka the dir we are trying to cd into is %s\n", args[1]);
 				// use chdir() system call, andcheck if successful
 				if (chdir(args[1]) == -1) {
 					// if unsuccessful, print error message to user
@@ -307,28 +309,27 @@ int main() {
 					fflush(stdout);
 				}
 			} else {
-				// if there is no target directory, cd to home dir (~)
+				// if there is no target directory, cd to home (~)
 				chdir(getenv("HOME"));
 			}
 		}
 		// if command given in "status"
 		else if (strcmp(args[0], builtIns[2]) == 0) {
 			// get and print exit status
-			smallshExitStatus(childExitStatus);
+			smallshExitStatus(exitStatus);
 		} else {
 			// or, execute whatever command given
-			// ideally didn't want to pass around so many parameters, but chose to use this
+			// ideally didn't want to pass around so many parameters, 
+			//  but chose to use this
 			// method instead of using a bunch of global variables
-			smallshExecute(args, &childExitStatus, SIGINT_action, inFile, outFile);
+			smallshExecute(args, &exitStatus, SIGINT_action, &bgProcess, inFile, outFile);
 		}
 
 		// go through and reset variables at the end of each shell loop
 		for (int i = 0; args[i]; i++) { args[i] = NULL; }
-		
-		// bgProcess = 0;
-		bg_process = 0;
+		bgProcess = 0;
 		inFile[0] = '\0';
 		outFile[0] = '\0';
-		}
-		return 0;
+	}
+	return 0;
 }
