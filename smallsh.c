@@ -32,9 +32,11 @@ parse words from the input buffer and stores into variables for later use
 */
 void smallshRead(char* arr[], int* bgProcess, char inputName[], char outputName[]) {
     char buffer[MAX_LEN]; // buffer that can store up to 2048 elements
-    
+
+	printf("\033[0;36m");    
 		// print prompt (:) to the user
     printf(": ");
+	printf("\033[0m");
 		
     fflush(stdout);
     // get full command from standard in
@@ -170,7 +172,9 @@ void smallshExecute(char* arr[], int* childStatus, struct sigaction sa, int* bgP
 			// use execvp() to execute command given
 			// https://oregonstate.instructure.com/courses/1784217/pages/exploration-process-api-executing-a-new-program?module_item_id=19893097
 			if (execvp(arr[0], (char* const*)arr)) {
+				printf("\033[1;31m");
 				printf("%s: no such file or directory\n", arr[0]);
+				printf("\033[0m");
 				fflush(stdout);
 				exit(2);
 			}
@@ -204,14 +208,18 @@ and toggles accordingly
 void catchSIGTSTP(int signo) {
 	// enter into fg mode, write message than flip bool flag
 	if (allowBackground == 1) {
+        printf("\033[1;31m");
 		char* message = "Entering foreground-only mode (& is now ignored)\n";
+        printf("\033[0m");
 		write(1, message, 49); 
 		fflush(stdout);
 		allowBackground = 0;
 	}
 	// else, do the inverse
 	else {
+        printf("\033[1;31m");
 		char* message = "Exiting foreground-only mode\n";
+        printf("\033[0m");
 		write (1, message, 29); 
 		fflush(stdout);
 		allowBackground = 1;
@@ -305,7 +313,9 @@ int main() {
 				// use chdir() system call, andcheck if successful
 				if (chdir(args[1]) == -1) {
 					// if unsuccessful, print error message to user
+                    printf("\033[1;31m");
 					printf("cd: no such file or directory found: %s\n", args[1]);
+                    printf("\033[0m");
 					fflush(stdout);
 				}
 			} else {
